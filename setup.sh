@@ -1,5 +1,8 @@
 #!/bin/bash
 
+read -p "Enter your Git email: " git_email
+git config --global user.email "$git_email"
+
 apt update
 apt install -y htop nvtop vim
 
