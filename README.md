@@ -15,7 +15,7 @@ Then, run the `setup.sh` script to configure your virtual environments and run s
 source setup.sh
 ```
 
-## Check NVIDIA Versions
+## NVIDIA Versions
 
 Check `nvcc` version (you should have version 11.8+):
 
@@ -28,4 +28,18 @@ Check the NVIDIA driver version and compute capability (you should have 12.2+ an
 ```bash
 nvidia-smi
 nvidia-smi --query-gpu=compute_cap --format=csv
+```
+
+## Running
+
+To compile our CUDA program, we can use `nvcc` like so:
+
+```bash
+nvcc -o build/saxpy src/saxpy.cu
+```
+
+Then, to run the executable, you can do the following:
+
+```bash
+./build/saxpy
 ```
