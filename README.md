@@ -14,3 +14,18 @@ Then, run the `setup.sh` script to configure your virtual environments and run s
 ```bash
 source setup.sh
 ```
+
+## Check NVIDIA Versions
+
+Check `nvcc` version (you should have version 11.8+):
+
+```bash
+nvcc --version
+```
+
+Check the NVIDIA driver version and compute capability (you should have 12.2+ and 8.9+):
+
+```bash
+nvidia-smi
+nvidia-smi --query-gpu=compute_cap --format=csv
+```
