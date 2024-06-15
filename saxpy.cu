@@ -9,7 +9,8 @@ __global__ void saxpy(int n, float a, float *x, float *y, float *out) {
 }
 
 int main(void) {
-    const size_t N = 10;
+    const size_t N = 1000;
+    const size_t NUM_THREADS = 256;
 
     std::vector<float> x(N);
     std::vector<float> y(N);
@@ -26,7 +27,8 @@ int main(void) {
     cudaMemcpy(d_x, x.data(), N * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_y, y.data(), N * sizeof(float), cudaMemcpyHostToDevice);
 
-    saxpy<<<1, 10>>>(N, 2.0f, d_x, d_y, d_out);
+    const size_t num_blocks = (N + NUM_THREADS - 1) / NUM_THREADS;
+    saxpy<<<num_blocks, NUM_THREADS>>>(N, 2.0f, d_x, d_y, d_out);
     cudaDeviceSynchronize();
 
     std::vector<float> out(N);
