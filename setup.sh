@@ -4,7 +4,7 @@ read -p "Enter your Git email: " git_email
 git config --global user.email "$git_email"
 
 apt update
-apt install -y htop nvtop vim make
+apt install -y htop nvtop vim make clang clang-format
 
 if [ ! -d "venv" ]; then
   python3 -m venv venv
