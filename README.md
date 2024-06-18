@@ -43,3 +43,7 @@ Then, to run the executable, you can do the following:
 ```bash
 ./build/saxpy
 ```
+
+## Profiling
+
+You can download NVIDIA Nsight Systems [here](https://developer.nvidia.com/nsight-systems/get-started#latest-version) for Mac. Then, you can connect it to the instance via SSH and target an executable.

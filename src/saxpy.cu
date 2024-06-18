@@ -1,28 +1,34 @@
-#include <iostream>
 #include <vector>
 #include <algorithm>
-#include <chrono>
+
 #include "utils/cuda.cuh"
 #include "saxpy.cuh"
 
 __global__ void
-saxpy(int n, float a, float *x, float *y, float *out)
+saxpy(size_t n, float a, float *x, float *y, float *out)
 {
-    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < n)
     {
         out[i] = a * x[i] + y[i];
     }
 }
 
-SAXPY::SAXPY(float a, std::vector<float> &x, std::vector<float> &y) : a_(a), x_(x), y_(y), n_(x.size())
+SAXPY::SAXPY(const float a, const std::vector<float> &x, const std::vector<float> &y, const size_t n)
+    : a_(a), x_(x), y_(y), n_(n)
 {
     // verify vector sizes
-    if (x.size() != y.size() || x.size() == 0)
+    if (x.size() != n_ || x.size() != y.size())
         throw std::runtime_error("Vector sizes do not match");
+    else if (x.size() == 0 || y.size() == 0)
+        throw std::runtime_error("Vector size cannot be zero");
 
     // create stream
     CUDA_CALL(cudaStreamCreate(&stream_));
+
+    // create events
+    CUDA_CALL(cudaEventCreate(&start));
+    CUDA_CALL(cudaEventCreate(&stop));
 
     // allocate device memory
     CUDA_CALL(cudaMallocAsync(&d_x, n_ * sizeof(float), stream_));
@@ -50,10 +56,18 @@ SAXPY::~SAXPY()
 void
 SAXPY::run()
 {
-    const size_t num_threads = std::max<size_t>(256, n_);
+    const size_t num_threads = std::min<size_t>(256, n_);
     const size_t num_blocks = (n_ + num_threads - 1) / num_threads;
+
+    // record start event
+    CUDA_CALL(cudaEventRecord(start, stream_));
+
+    // launch kernel
     saxpy<<<num_blocks, num_threads, 0, stream_>>>(n_, a_, d_x, d_y, d_out);
     CUDA_CALL(cudaGetLastError());
+
+    // record stop event
+    CUDA_CALL(cudaEventRecord(stop, stream_));
 }
 
 std::vector<float>
@@ -65,29 +79,11 @@ SAXPY::get()
     return out;
 }
 
-int
-main(void)
+float
+SAXPY::time()
 {
-    const size_t N = 1000;
-    std::vector<float> x(N);
-    std::vector<float> y(N);
-    for (size_t i = 0; i < N; ++i)
-    {
-        x[i] = 2.0f;
-        y[i] = 3.0f;
-    }
-
-    SAXPY saxpy1(2.0f, x, y);
-    SAXPY saxpy2(3.0f, x, y);
-
-    saxpy1.run();
-    saxpy2.run();
-
-    std::vector<float> out1 = saxpy1.get();
-    std::vector<float> out2 = saxpy2.get();
-
-    std::cout << "out1[0] = " << out1[0] << std::endl;
-    std::cout << "out2[0] = " << out2[0] << std::endl;
-
-    return 0;
+    float ms;
+    CUDA_CALL(cudaEventSynchronize(stop));
+    CUDA_CALL(cudaEventElapsedTime(&ms, start, stop));
+    return ms;
 }
