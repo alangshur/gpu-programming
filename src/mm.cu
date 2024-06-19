@@ -4,23 +4,24 @@
 #include "utils/cuda.cuh"
 #include "mm.cuh"
 
+#define BLOCK_DIM 32
+
 __global__ void
 mm(size_t m, size_t n, size_t p, float *x, float *y, float *out)
 {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < m * p)
+    size_t i = blockIdx.y * blockDim.y + threadIdx.y;
+    size_t j = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i >= m || j >= p)
+        return;
+
+    float sum = 0.0;
+    for (size_t k = 0; k < n; ++k)
     {
-        size_t row = i / p;
-        size_t col = i % p;
-
-        float sum = 0.0;
-        for (size_t j = 0; j < n; ++j)
-        {
-            sum += x[row * p + j] * y[col + j * p];
-        }
-
-        out[row * p + col] = sum;
+        sum += x[i * n + k] * y[k * p + j];
     }
+
+    out[i * p + j] = sum;
 }
 
 MM::MM(const std::vector<float> &x, const std::vector<float> &y, const size_t m, const size_t n, const size_t p)
@@ -65,14 +66,14 @@ MM::~MM()
 void
 MM::run()
 {
-    const size_t num_threads = std::min<size_t>(256, m_ * p_);
-    const size_t num_blocks = (m_ * p_ + num_threads - 1) / num_threads;
+    dim3 threads_per_block(BLOCK_DIM, BLOCK_DIM);
+    dim3 blocks_per_grid((p_ + BLOCK_DIM - 1) / BLOCK_DIM, (m_ + BLOCK_DIM - 1) / BLOCK_DIM);
 
     // record start event
     CUDA_CALL(cudaEventRecord(start, stream_));
 
     // launch kernel
-    mm<<<num_blocks, num_threads, 0, stream_>>>(m_, n_, p_, d_x, d_y, d_out);
+    mm<<<blocks_per_grid, threads_per_block, 0, stream_>>>(m_, n_, p_, d_x, d_y, d_out);
     CUDA_CALL(cudaGetLastError());
 
     // record stop event

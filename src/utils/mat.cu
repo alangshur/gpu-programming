@@ -2,7 +2,7 @@
 #include <vector>
 #include <random>
 
-#include <mat.cuh>
+#include "mat.cuh"
 
 std::vector<float>
 create_random_mat(size_t m, size_t n, float min, float max)

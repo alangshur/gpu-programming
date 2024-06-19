@@ -9,7 +9,7 @@ git clone https://github.com/alangshur/gpu-programming.git
 cd gpu-programming
 ```
 
-Then, run the `setup.sh` script to configure your virtual environments and run system checks:
+Then, run the `setup.sh` script to configure the environment:
 
 ```bash
 source setup.sh
@@ -17,13 +17,13 @@ source setup.sh
 
 ## NVIDIA Versions
 
-Check `nvcc` version (you should have version 11.8+):
+Check `nvcc` version for version 11.8+:
 
 ```bash
 nvcc --version
 ```
 
-Check the NVIDIA driver version and compute capability (you should have 12.2+ and 8.9+):
+Check the NVIDIA driver version and compute capability for versions 12.2+ and 8.9+, respectively:
 
 ```bash
 nvidia-smi
@@ -32,18 +32,24 @@ nvidia-smi --query-gpu=compute_cap --format=csv
 
 ## Running
 
-To compile our CUDA program, we can use `nvcc` like so:
+To run the tests, first use CMake to generate the build system files in the `build` directory:
 
 ```bash
-nvcc -o build/saxpy src/saxpy.cu
+mkdir build
+cd build
+cmake ..
 ```
 
-Then, to run the executable, you can do the following:
+Then, build the project:
 
 ```bash
-./build/saxpy
+make
 ```
 
-## Profiling
+Finally, run the tests:
 
-You can download NVIDIA Nsight Systems [here](https://developer.nvidia.com/nsight-systems/get-started#latest-version) for Mac. Then, you can connect it to the instance via SSH and target an executable.
+```bash
+ctest
+ctest --verbose # for more detailed output with all outputs
+ctest --output-on-failure # to show output only on failure
+```
