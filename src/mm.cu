@@ -9,19 +9,54 @@
 __global__ void
 mm(size_t m, size_t n, size_t p, float *x, float *y, float *out)
 {
-    size_t i = blockIdx.y * blockDim.y + threadIdx.y;
-    size_t j = blockIdx.x * blockDim.x + threadIdx.x;
+    __shared__ float x_tile[BLOCK_DIM][BLOCK_DIM];
+    __shared__ float y_tile[BLOCK_DIM][BLOCK_DIM];
 
-    if (i >= m || j >= p)
-        return;
+    size_t row = blockIdx.y * BLOCK_DIM + threadIdx.y;
+    size_t col = blockIdx.x * BLOCK_DIM + threadIdx.x;
+
+    size_t tile_row = threadIdx.y;
+    size_t tile_col = threadIdx.x;
+
+    size_t num_tiles = (n + BLOCK_DIM - 1) / BLOCK_DIM;
 
     float sum = 0.0;
-    for (size_t k = 0; k < n; ++k)
+
+    for (size_t tile_idx = 0; tile_idx < num_tiles; ++tile_idx)
     {
-        sum += x[i * n + k] * y[k * p + j];
+        size_t x_tile_row = blockIdx.y * BLOCK_DIM + threadIdx.y;
+        size_t x_tile_col = tile_idx * BLOCK_DIM + threadIdx.x;
+        if (x_tile_row < m && x_tile_col < n)
+        {
+            x_tile[tile_row][tile_col] = x[x_tile_row * n + x_tile_col];
+        }
+        else
+        {
+            x_tile[tile_row][tile_col] = 0.0;
+        }
+
+        size_t y_tile_row = tile_idx * BLOCK_DIM + threadIdx.y;
+        size_t y_tile_col = blockIdx.x * BLOCK_DIM + threadIdx.x;
+        if (y_tile_row < n && y_tile_col < p)
+        {
+            y_tile[tile_row][tile_col] = y[y_tile_row * p + y_tile_col];
+        }
+        else
+        {
+            y_tile[tile_row][tile_col] = 0.0;
+        }
+
+        __syncthreads();
+
+        for (size_t k = 0; k < BLOCK_DIM; ++k)
+        {
+            sum += x_tile[tile_row][k] * y_tile[k][tile_col];
+        }
+
+        __syncthreads();
     }
 
-    out[i * p + j] = sum;
+    out[row * p + col] = sum;
 }
 
 MM::MM(const std::vector<float> &x, const std::vector<float> &y, const size_t m, const size_t n, const size_t p)
