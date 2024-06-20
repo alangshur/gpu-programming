@@ -2,49 +2,49 @@
 
 template <typename T>
 __global__ void
-mm(size_t m, size_t n, size_t p, T *x, T *y, T *out);
+fastmm(size_t m, size_t n, size_t p, T *x, T *y, T *out);
 
 /**
- * @class MM
- * @brief A class to perform the MM operation using CUDA.
+ * @class FastMM
+ * @brief A class to perform the FastMM operation using CUDA.
  *
- * The MM operation is defined as XY, where X has dimensions m x n and Y has
+ * The FastMM operation is defined as XY, where X has dimensions m x n and Y has
  * dimensions n x p. The result of the operation is a matrix of dimensions m x p.
  */
 template <typename T>
-class MM
+class FastMM
 {
 public:
     /**
-     * @brief Constructs a MM object.
+     * @brief Constructs a FastMM object.
      * @param x The first matrix, stored in row-major order.
      * @param y The second matrix, stored in row-major order.
      * @param m The number of rows in the first matrix.
      * @param n The number of columns in the first matrix and the number of rows in the second matrix.
      * @param p The number of columns in the second matrix.
      */
-    MM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t p);
+    FastMM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t p);
 
     /**
-     * @brief Destroys the MM object.
+     * @brief Destroys the FastMM object.
      */
-    ~MM();
+    ~FastMM();
 
     /**
-     * @brief Runs the MM operation.
+     * @brief Runs the FastMM operation.
      */
     void
     run();
 
     /**
-     * @brief Retrieves the result of the MM operation.
+     * @brief Retrieves the result of the FastMM operation.
      * @return A vector containing the result, stored in row-major order.
      */
     std::vector<T>
     get();
 
     /**
-     * @brief Retrieves the time taken to run the MM operation.
+     * @brief Retrieves the time taken to run the FastMM operation.
      * @return The time taken in milliseconds.
      */
     float
