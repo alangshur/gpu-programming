@@ -8,7 +8,7 @@
 
 template <typename T>
 __global__ void
-mm(size_t m, size_t n, size_t p, T *x, T *y, T *out)
+mm(size_t m, size_t n, size_t k, T *x, T *y, T *out)
 {
     __shared__ T x_tile[BLOCK_DIM][BLOCK_DIM];
     __shared__ T y_tile[BLOCK_DIM][BLOCK_DIM];
@@ -22,15 +22,15 @@ mm(size_t m, size_t n, size_t p, T *x, T *y, T *out)
     T acc = 0.0;
 
     // iterate over all X and Y tiles to compute OUT tile
-    size_t num_tiles = (n + BLOCK_DIM - 1) / BLOCK_DIM;
+    size_t num_tiles = (k + BLOCK_DIM - 1) / BLOCK_DIM;
     for (size_t tile_idx = 0; tile_idx < num_tiles; ++tile_idx)
     {
         // load tile from X into shared memory
         size_t x_tile_row = blockIdx.y * BLOCK_DIM + threadIdx.y;
         size_t x_tile_col = tile_idx * BLOCK_DIM + threadIdx.x;
-        if (x_tile_row < m && x_tile_col < n)
+        if (x_tile_row < m && x_tile_col < k)
         {
-            x_tile[tile_row][tile_col] = x[x_tile_row * n + x_tile_col];
+            x_tile[tile_row][tile_col] = x[x_tile_row * k + x_tile_col];
         }
         else
         {
@@ -40,9 +40,9 @@ mm(size_t m, size_t n, size_t p, T *x, T *y, T *out)
         // load tile from Y into shared memory
         size_t y_tile_row = tile_idx * BLOCK_DIM + threadIdx.y;
         size_t y_tile_col = blockIdx.x * BLOCK_DIM + threadIdx.x;
-        if (y_tile_row < n && y_tile_col < p)
+        if (y_tile_row < k && y_tile_col < n)
         {
-            y_tile[tile_row][tile_col] = y[y_tile_row * p + y_tile_col];
+            y_tile[tile_row][tile_col] = y[y_tile_row * n + y_tile_col];
         }
         else
         {
@@ -62,15 +62,15 @@ mm(size_t m, size_t n, size_t p, T *x, T *y, T *out)
         __syncthreads();
     }
 
-    out[row * p + col] = acc;
+    out[row * n + col] = acc;
 }
 
 template <typename T>
-MM<T>::MM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t p)
-    : m_(m), n_(n), p_(p), x_(x), y_(y)
+MM<T>::MM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t k)
+    : m_(m), n_(n), k_(k), x_(x), y_(y)
 {
     // verify vector sizes
-    if (x.size() != m_ * n_ || y.size() != n_ * p_)
+    if (x.size() != m_ * k_ || y.size() != k_ * n_)
         throw std::runtime_error("Vector sizes do not match");
     else if (x.size() == 0 || y.size() == 0)
         throw std::runtime_error("Vector size cannot be zero");
@@ -83,13 +83,13 @@ MM<T>::MM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, cons
     CUDA_CALL(cudaEventCreate(&stop));
 
     // allocate device memory
-    CUDA_CALL(cudaMallocAsync(&d_x, m_ * n_ * sizeof(T), stream_));
-    CUDA_CALL(cudaMallocAsync(&d_y, n_ * p_ * sizeof(T), stream_));
-    CUDA_CALL(cudaMallocAsync(&d_out, m_ * p_ * sizeof(T), stream_));
+    CUDA_CALL(cudaMallocAsync(&d_x, m_ * k_ * sizeof(T), stream_));
+    CUDA_CALL(cudaMallocAsync(&d_y, k_ * n_ * sizeof(T), stream_));
+    CUDA_CALL(cudaMallocAsync(&d_out, m_ * n_ * sizeof(T), stream_));
 
     // copy data to device
-    CUDA_CALL(cudaMemcpyAsync(d_x, x.data(), m_ * n_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
-    CUDA_CALL(cudaMemcpyAsync(d_y, y.data(), n_ * p_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
+    CUDA_CALL(cudaMemcpyAsync(d_x, x.data(), m_ * k_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
+    CUDA_CALL(cudaMemcpyAsync(d_y, y.data(), k_ * n_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
 }
 
 template <typename T>
@@ -111,13 +111,13 @@ void
 MM<T>::run()
 {
     dim3 threads_per_block(BLOCK_DIM, BLOCK_DIM);
-    dim3 blocks_per_grid((p_ + BLOCK_DIM - 1) / BLOCK_DIM, (m_ + BLOCK_DIM - 1) / BLOCK_DIM);
+    dim3 blocks_per_grid((n_ + BLOCK_DIM - 1) / BLOCK_DIM, (m_ + BLOCK_DIM - 1) / BLOCK_DIM);
 
     // record start event
     CUDA_CALL(cudaEventRecord(start, stream_));
 
     // launch kernel
-    mm<<<blocks_per_grid, threads_per_block, 0, stream_>>>(m_, n_, p_, d_x, d_y, d_out);
+    mm<<<blocks_per_grid, threads_per_block, 0, stream_>>>(m_, n_, k_, d_x, d_y, d_out);
     CUDA_CALL(cudaGetLastError());
 
     // record stop event
@@ -128,8 +128,8 @@ template <typename T>
 std::vector<T>
 MM<T>::get()
 {
-    std::vector<T> out(m_ * p_);
-    CUDA_CALL(cudaMemcpyAsync(out.data(), d_out, m_ * p_ * sizeof(T), cudaMemcpyDeviceToHost, stream_));
+    std::vector<T> out(m_ * n_);
+    CUDA_CALL(cudaMemcpyAsync(out.data(), d_out, m_ * n_ * sizeof(T), cudaMemcpyDeviceToHost, stream_));
     CUDA_CALL(cudaStreamSynchronize(stream_));
     return out;
 }
