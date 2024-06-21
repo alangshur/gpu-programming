@@ -29,13 +29,11 @@ template <typename T1, typename T2, typename WMMA_M, typename WMMA_N, typename W
 __global__ void
 wmma_mm(size_t m, size_t n, size_t k, T1 *x, T1 *y, T1 *out)
 {
-    // these are the indices of this thread's warp
+    // find indices of the current warp's WMMA_MxWMMA_N output tile
     size_t warp_m = blockIdx.y * blockDim.y + threadIdx.y;
     size_t warp_n = (blockIdx.x * blockDim.x + threadIdx.x) / warpSize;
 
-    size_t warp_row = warp_m * WMMA_M;
-    size_t warp_col = warp_n * WMMA_N;
-
+    // initialize the WMMA fragments
     nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, T1, nvcuda::wmma::row_major> a_frag;
     nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, T1, nvcuda::wmma::row_major> b_frag;
     nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, T2> acc_frag;
@@ -43,108 +41,115 @@ wmma_mm(size_t m, size_t n, size_t k, T1 *x, T1 *y, T1 *out)
     // make sure accumulator starts from zero
     nvcuda::wmma::fill_fragment(acc_frag, static_cast<T2>(0));
 
+    // loop over k/WMMA_K tiles to calculate the output tile
     for (size_t ki = 0; ki < k; ki += WMMA_K)
     {
-        size_t mma_x_row = warp_row;
+        // find the row and column of the A tile from X
+        size_t mma_x_row = warp_m * WMMA_M;
         size_t mma_x_col = ki;
 
+        // find the row and column of the B tile from Y
         size_t mma_y_row = ki;
-        size_t mma_y_col = warp_col;
+        size_t mma_y_col = warp_n * WMMA_N;
 
+        // check if the current A and B tiles are within the bounds of X and Y
         if (mma_x_row < m && mma_x_col < k && mma_y_row < k && mma_y_col < n)
         {
-            nvcuda::wmma::load_matrix_sync(a_frag, x + mma_x_row * k + mma_x_col, k);
-            nvcuda::wmma::load_matrix_sync(b_frag, y + mma_y_row * n + mma_y_col, n);
+            // get pointers to the current A and B tiles
+            T1 *x_ptr = x + mma_x_row * k + mma_x_col;
+            T1 *y_ptr = y + mma_y_row * n + mma_y_col;
+
+            // load data into fragments
+            nvcuda::wmma::load_matrix_sync(a_frag, x_ptr, k);
+            nvcuda::wmma::load_matrix_sync(b_frag, y_ptr, n);
+
+            // perform matrix multiplication
             nvcuda::wmma::mma_sync(acc_frag, a_frag, b_frag, acc_frag);
         }
 
-        // load data into fragments
-        nvcuda::wmma::load_matrix_sync(a_frag, x + blockIdx.y * WMMA_M * k + frag_index * WMMA_K, k);
-        nvcuda::wmma::load_matrix_sync(b_frag, y + frag_index * WMMA_K * n + blockIdx.x * WMMA_K, n);
-
-        // perform matrix multiplication
-        nvcuda::wmma::mma_sync(acc_frag, a_frag, b_frag, acc_frag);
+        // store the result in the output matrix
+        if (warp_m < m && warp_n < n)
+        {
+            T2 *out_ptr = out + warp_m * n + warp_n;
+            nvcuda::wmma::store_matrix_sync(out_ptr, acc_frag, n, nvcuda::wmma::mem_row_major);
+        }
     }
-}
 
-template <typename T>
-FastMM<T>::FastMM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t k)
-    : m_(m), n_(n), k_(k), x_(x), y_(y)
-{
-    // verify vector sizes
-    if (x.size() != m_ * k_ || y.size() != k_ * n_)
-        throw std::runtime_error("Vector sizes do not match");
-    else if (x.size() == 0 || y.size() == 0)
-        throw std::runtime_error("Vector size cannot be zero");
+    template <typename T>
+    FastMM<T>::FastMM(const std::vector<T> &x, const std::vector<T> &y, const size_t m, const size_t n, const size_t k)
+        : m_(m), n_(n), k_(k), x_(x), y_(y)
+    {
+        // verify vector sizes
+        if (x.size() != m_ * k_ || y.size() != k_ * n_)
+            throw std::runtime_error("Vector sizes do not match");
+        else if (x.size() == 0 || y.size() == 0)
+            throw std::runtime_error("Vector size cannot be zero");
 
-    // create stream
-    CUDA_CALL(cudaStreamCreate(&stream_));
+        // create stream
+        CUDA_CALL(cudaStreamCreate(&stream_));
 
-    // create events
-    CUDA_CALL(cudaEventCreate(&start));
-    CUDA_CALL(cudaEventCreate(&stop));
+        // create events
+        CUDA_CALL(cudaEventCreate(&start));
+        CUDA_CALL(cudaEventCreate(&stop));
 
-    // allocate device memory
-    CUDA_CALL(cudaMallocAsync(&d_x, m_ * k_ * sizeof(T), stream_));
-    CUDA_CALL(cudaMallocAsync(&d_y, k_ * n_ * sizeof(T), stream_));
-    CUDA_CALL(cudaMallocAsync(&d_out, m_ * n_ * sizeof(T), stream_));
+        // allocate device memory
+        CUDA_CALL(cudaMallocAsync(&d_x, m_ * k_ * sizeof(T), stream_));
+        CUDA_CALL(cudaMallocAsync(&d_y, k_ * n_ * sizeof(T), stream_));
+        CUDA_CALL(cudaMallocAsync(&d_out, m_ * n_ * sizeof(T), stream_));
 
-    // copy data to device
-    CUDA_CALL(cudaMemcpyAsync(d_x, x.data(), m_ * k_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
-    CUDA_CALL(cudaMemcpyAsync(d_y, y.data(), k_ * n_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
-}
+        // copy data to device
+        CUDA_CALL(cudaMemcpyAsync(d_x, x.data(), m_ * k_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
+        CUDA_CALL(cudaMemcpyAsync(d_y, y.data(), k_ * n_ * sizeof(T), cudaMemcpyHostToDevice, stream_));
+    }
 
-template <typename T>
-FastMM<T>::~FastMM()
-{
-    cudaStreamSynchronize(stream_);
+    template <typename T>
+    FastMM<T>::~FastMM()
+    {
+        cudaStreamSynchronize(stream_);
 
-    // destroy stream
-    cudaStreamDestroy(stream_);
+        // destroy stream
+        cudaStreamDestroy(stream_);
 
-    // free device memory
-    cudaFree(d_x);
-    cudaFree(d_y);
-    cudaFree(d_out);
-}
+        // free device memory
+        cudaFree(d_x);
+        cudaFree(d_y);
+        cudaFree(d_out);
+    }
 
-template <typename T>
-void
-FastMM<T>::run()
-{
-    dim3 threads_per_block(BLOCK_DIM, BLOCK_DIM);
-    dim3 blocks_per_grid((n_ + BLOCK_DIM - 1) / BLOCK_DIM, (m_ + BLOCK_DIM - 1) / BLOCK_DIM);
+    template <typename T>
+    void FastMM<T>::run()
+    {
+        dim3 threads_per_block(BLOCK_DIM, BLOCK_DIM);
+        dim3 blocks_per_grid((n_ + BLOCK_DIM - 1) / BLOCK_DIM, (m_ + BLOCK_DIM - 1) / BLOCK_DIM);
 
-    // record start event
-    CUDA_CALL(cudaEventRecord(start, stream_));
+        // record start event
+        CUDA_CALL(cudaEventRecord(start, stream_));
 
-    // launch kernel
-    wmma_mm<<<blocks_per_grid, threads_per_block, 0, stream_>>>(m_, k_, n_, d_x, d_y, d_out);
-    CUDA_CALL(cudaGetLastError());
+        // launch kernel
+        wmma_mm<<<blocks_per_grid, threads_per_block, 0, stream_>>>(m_, k_, n_, d_x, d_y, d_out);
+        CUDA_CALL(cudaGetLastError());
 
-    // record stop event
-    CUDA_CALL(cudaEventRecord(stop, stream_));
-}
+        // record stop event
+        CUDA_CALL(cudaEventRecord(stop, stream_));
+    }
 
-template <typename T>
-std::vector<T>
-FastMM<T>::get()
-{
-    std::vector<T> out(m_ * n_);
-    CUDA_CALL(cudaMemcpyAsync(out.data(), d_out, m_ * n_ * sizeof(T), cudaMemcpyDeviceToHost, stream_));
-    CUDA_CALL(cudaStreamSynchronize(stream_));
-    return out;
-}
+    template <typename T>
+    std::vector<T> FastMM<T>::get()
+    {
+        std::vector<T> out(m_ * n_);
+        CUDA_CALL(cudaMemcpyAsync(out.data(), d_out, m_ * n_ * sizeof(T), cudaMemcpyDeviceToHost, stream_));
+        CUDA_CALL(cudaStreamSynchronize(stream_));
+        return out;
+    }
 
-template <typename T>
-float
-FastMM<T>::time()
-{
-    float ms;
-    CUDA_CALL(cudaEventSynchronize(stop));
-    CUDA_CALL(cudaEventElapsedTime(&ms, start, stop));
-    return ms;
-}
+    template <typename T>
+    float FastMM<T>::time()
+    {
+        float ms;
+        CUDA_CALL(cudaEventSynchronize(stop));
+        CUDA_CALL(cudaEventElapsedTime(&ms, start, stop));
+        return ms;
+    }
 
-template class FastMM<float>;
-template class FastMM<double>;
+    template class FastMM<float>;
+    template class FastMM<double>;
