@@ -11,8 +11,8 @@ TEST(FastMMTest, FastMMSmall)
     const size_t n = 10;
     const size_t k = 10;
 
-    std::vector<__half> x = vec_to_half(create_incremental_mat(m, k));
-    std::vector<__half> y = vec_to_half(create_incremental_mat(k, n));
+    std::vector<__half> x = vec_to_half(create_mat(m, k, 1.0f));
+    std::vector<__half> y = vec_to_half(create_mat(k, n, 1.0f));
 
     FastMM<__half, float> fastmm(x, y, m, n, k);
     fastmm.run();
@@ -20,8 +20,6 @@ TEST(FastMMTest, FastMMSmall)
     std::vector<float> out = fastmm.get();
     EXPECT_EQ(out.size(), m * n);
 
-    print_mat(x, m, k);
-    print_mat(y, k, n);
     print_mat(out, m, n);
 
     GTEST_LOG_(INFO) << "Time taken: " << fastmm.time() << " ms";

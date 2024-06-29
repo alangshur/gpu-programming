@@ -53,16 +53,19 @@ mm(size_t m, size_t n, size_t k, T *x, T *y, T *out)
         __syncthreads();
 
         // compute matrix multiplication between tiles
-        for (size_t k = 0; k < BLOCK_DIM; ++k)
+        for (size_t i = 0; i < BLOCK_DIM; ++i)
         {
-            acc += x_tile[tile_row][k] * y_tile[k][tile_col];
+            acc += x_tile[tile_row][i] * y_tile[i][tile_col];
         }
 
         // sync threads so all threads can reuse shared memory for next tiles
         __syncthreads();
     }
 
-    out[row * n + col] = acc;
+    if (row < m && col < n)
+    {
+        out[row * n + col] = acc;
+    }
 }
 
 template <typename T>

@@ -11,8 +11,8 @@ TEST(MMTest, SmallMM)
     const size_t n = 10;
     const size_t k = 10;
 
-    std::vector<float> x = create_incremental_mat(m, k);
-    std::vector<float> y = create_incremental_mat(k, n);
+    std::vector<float> x = create_mat(m, k, 1.0f);
+    std::vector<float> y = create_mat(k, n, 1.0f);
 
     MM<float> mm(x, y, m, n, k);
     mm.run();

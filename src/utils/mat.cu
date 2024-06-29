@@ -5,6 +5,14 @@
 #include "mat.cuh"
 
 std::vector<float>
+create_mat(size_t m, size_t n, float val)
+{
+    std::vector<float> mat(m * n);
+    for (int i = 0; i < m * n; ++i) mat[i] = val;
+    return mat;
+}
+
+std::vector<float>
 create_random_mat(size_t m, size_t n, float min, float max)
 {
     // seed random number generator

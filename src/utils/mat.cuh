@@ -3,6 +3,9 @@
 #include <random>
 
 std::vector<float>
+create_mat(size_t m, size_t n, float val);
+
+std::vector<float>
 create_random_mat(size_t m, size_t n, float min = 0.0f, float max = 1.0f);
 
 std::vector<float>
