@@ -4,42 +4,62 @@
 
 #include "mat.cuh"
 
-template <typename T>
-std::vector<T>
-create_random_mat(size_t m, size_t n, T min, T max)
+std::vector<float>
+create_random_mat(size_t m, size_t n, float min, float max)
 {
     // seed random number generator
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<T> dist(min, max);
+    std::uniform_real_distribution<float> dist(min, max);
 
     // create matrix
-    std::vector<T> mat(m * n);
+    std::vector<float> mat(m * n);
     for (int i = 0; i < m * n; ++i) mat[i] = dist(gen);
+
     return mat;
 }
 
-template <typename T>
-std::vector<T>
-create_random_vec(size_t n, T min, T max)
+std::vector<float>
+create_incremental_mat(size_t m, size_t n)
+{
+    std::vector<float> mat(m * n);
+    for (int i = 0; i < m * n; ++i) mat[i] = i;
+    return mat;
+}
+
+std::vector<float>
+create_random_vec(size_t n, float min, float max)
 {
     // seed random number generator
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<T> dist(min, max);
+    std::uniform_real_distribution<float> dist(min, max);
 
     // create vector
-    std::vector<T> vec(n);
+    std::vector<float> vec(n);
     for (int i = 0; i < n; ++i) vec[i] = dist(gen);
+
     return vec;
 }
 
-template std::vector<float>
-create_random_mat<float>(size_t, size_t, float, float);
-template std::vector<double>
-create_random_mat<double>(size_t, size_t, double, double);
+void
+print_mat(std::vector<float> mat, size_t m, size_t n)
+{
+    for (int i = 0; i < m; ++i)
+    {
+        for (int j = 0; j < n; ++j)
+        {
+            std::cout << mat[i * n + j] << "\t";
+        }
+        std::cout << std::endl;
+    }
+}
 
-template std::vector<float>
-create_random_vec<float>(size_t, float, float);
-template std::vector<double>
-create_random_vec<double>(size_t, double, double);
+void
+print_vec(std::vector<float> vec, size_t n)
+{
+    for (int i = 0; i < n; ++i)
+    {
+        std::cout << vec[i] << std::endl;
+    }
+}

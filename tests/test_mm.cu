@@ -2,58 +2,63 @@
 #include <iostream>
 
 #include "../src/utils/mat.cuh"
+#include "../src/utils/type.cuh"
 #include "../src/mm.cuh"
 
 TEST(MMTest, SmallMM)
 {
-    const size_t M = 10;
-    const size_t N = 20;
-    const size_t P = 10;
+    const size_t m = 10;
+    const size_t n = 10;
+    const size_t k = 10;
 
-    std::vector<float> x = create_random_mat<float>(M, N, 0.0f, 1.0f);
-    std::vector<float> y = create_random_mat<float>(N, P, 0.0f, 1.0f);
+    std::vector<float> x = create_incremental_mat(m, k);
+    std::vector<float> y = create_incremental_mat(k, n);
 
-    MM<float> mm(x, y, M, N, P);
+    MM<float> mm(x, y, m, n, k);
     mm.run();
 
     std::vector<float> out = mm.get();
-    EXPECT_EQ(out.size(), M * P);
+    EXPECT_EQ(out.size(), m * n);
+
+    print_mat(x, m, k);
+    print_mat(y, k, n);
+    print_mat(out, m, n);
 
     GTEST_LOG_(INFO) << "Time taken: " << mm.time() << " ms";
 }
 
 TEST(MMTest, LargeMMFloat)
 {
-    const size_t M = 1024;
-    const size_t N = 1024;
-    const size_t P = 1024;
+    const size_t m = 1024;
+    const size_t n = 1024;
+    const size_t k = 1024;
 
-    std::vector<float> x = create_random_mat<float>(M, N, 0.0f, 1.0f);
-    std::vector<float> y = create_random_mat<float>(N, P, 0.0f, 1.0f);
+    std::vector<float> x = create_random_mat(m, k);
+    std::vector<float> y = create_random_mat(k, n);
 
-    MM<float> mm(x, y, M, N, P);
+    MM<float> mm(x, y, m, n, k);
     mm.run();
 
     std::vector<float> out = mm.get();
-    EXPECT_EQ(out.size(), M * P);
+    EXPECT_EQ(out.size(), m * n);
 
     GTEST_LOG_(INFO) << "Time taken: " << mm.time() << " ms";
 }
 
 TEST(MMTest, LargeMMDouble)
 {
-    const size_t M = 1024;
-    const size_t N = 1024;
-    const size_t P = 1024;
+    const size_t m = 1024;
+    const size_t n = 1024;
+    const size_t k = 1024;
 
-    std::vector<double> x = create_random_mat<double>(M, N, 0.0f, 1.0f);
-    std::vector<double> y = create_random_mat<double>(N, P, 0.0f, 1.0f);
+    std::vector<double> x = vec_to_double(create_random_mat(m, k, 0.0f, 1.0f));
+    std::vector<double> y = vec_to_double(create_random_mat(k, n, 0.0f, 1.0f));
 
-    MM<double> mm(x, y, M, N, P);
+    MM<double> mm(x, y, m, n, k);
     mm.run();
 
     std::vector<double> out = mm.get();
-    EXPECT_EQ(out.size(), M * P);
+    EXPECT_EQ(out.size(), m * n);
 
     GTEST_LOG_(INFO) << "Time taken: " << mm.time() << " ms";
 }

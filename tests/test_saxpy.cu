@@ -7,8 +7,8 @@
 TEST(SAXPYTest, SimpleTest)
 {
     const size_t N = 1000;
-    std::vector<float> x = create_random_vec<float>(N, 0.0f, 1.0f);
-    std::vector<float> y = create_random_vec<float>(N, 0.0f, 1.0f);
+    std::vector<float> x = create_random_vec(N, 0.0f, 1.0f);
+    std::vector<float> y = create_random_vec(N, 0.0f, 1.0f);
 
     SAXPY saxpy(2.0f, x, y, N);
     saxpy.run();

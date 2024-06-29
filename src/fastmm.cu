@@ -145,4 +145,4 @@ FastMM<T1, T2>::time()
     return ms;
 }
 
-template class FastMM<float, float>;
+template class FastMM<__half, float>;
