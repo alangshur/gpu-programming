@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <mma.h>
 
 #include "../src/utils/mat.cuh"
-#include "../src/utils/type.cuh"
 #include "../src/fastmm.cuh"
 
 TEST(FastMMTest, FastMMSmall)
@@ -11,8 +11,8 @@ TEST(FastMMTest, FastMMSmall)
     const size_t n = 10;
     const size_t k = 10;
 
-    std::vector<__half> x = vec_to_half(create_mat(m, k, 1.0f));
-    std::vector<__half> y = vec_to_half(create_mat(k, n, 1.0f));
+    std::vector<__half> x = cast_mat<float, __half>(create_mat(m, k, 1.0f));
+    std::vector<__half> y = cast_mat<float, __half>(create_mat(k, n, 1.0f));
 
     FastMM<__half, float> fastmm(x, y, m, n, k);
     fastmm.run();
@@ -31,8 +31,8 @@ TEST(FastMMTest, FastMMLarge)
     const size_t n = 1024;
     const size_t k = 1024;
 
-    std::vector<__half> x = vec_to_half(create_random_mat(m, k));
-    std::vector<__half> y = vec_to_half(create_random_mat(k, n));
+    std::vector<__half> x = cast_mat<float, __half>(create_random_mat(m, k));
+    std::vector<__half> y = cast_mat<float, __half>(create_random_mat(k, n));
 
     FastMM<__half, float> fastmm(x, y, m, n, k);
     fastmm.run();
